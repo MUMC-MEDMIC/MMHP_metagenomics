@@ -1,5 +1,7 @@
 if [ ! -d 1.assay/cluster_logs ];then mkdir -p 1.assay/cluster_logs;fi
 
+
+
 snakemake \
 --snakefile rules/profile.smk \
 --configfile config.yaml \

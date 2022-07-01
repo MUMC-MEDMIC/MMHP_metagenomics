@@ -1,1 +1,11 @@
 readme_original.md
+0.data/*
+1.assay/*
+2.result/*
+3.assemblies/*
+
+.snakemake/*
+database/*
+ranCommands.sh
+metaRemoveHuman.sh
+template_sample.txt

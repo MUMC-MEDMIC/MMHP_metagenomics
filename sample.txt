@@ -1,3 +1,2 @@
 id	fq1	fq2
-test1	0.data/test1_1.fq.gz	0.data/test1_2.fq.gz
-test2	0.data/test2_1.fq.gz	0.data/test2_2.fq.gz
+LCK-408	0.data/MMHP-UM-LCK-408/E100016394_L01_114_1.fq.gz	0.data/MMHP-UM-LCK-408/E100016394_L01_114_1.fq.gz

@@ -1,0 +1,6 @@
+name: megahit
+channels:
+  - bioconda
+  - defaults
+dependencies:
+  - maxbin2=2.2.7

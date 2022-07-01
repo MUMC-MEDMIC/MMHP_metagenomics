@@ -9,7 +9,8 @@ import json
 import pandas
 
 def trim_stat(fastp_json):
-    fastp_sample = os.path.basename(fastp_json).rstrip(".fastp.json")
+    #fastp_sample = os.path.basename(fastp_json).rstrip(".fastp.json")
+    fastp_sample = os.path.basename(fastp_json).replace(".fastp.json","")
     with open(fastp_json, 'r') as f:
         OA_json = json.load(f)
     reads_before = OA_json.get('summary').get('before_filtering').get('total_reads')

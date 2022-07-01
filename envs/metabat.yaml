@@ -1,0 +1,6 @@
+name: megahit
+channels:
+  - bioconda
+  - defaults
+dependencies:
+  - metabat2=2.15
