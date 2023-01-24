@@ -26,12 +26,11 @@ print(SAMPLES)
 
 rule all:
     input:
-        expand("{result_dir}/filter_summary.txt", result_dir = config["results"]),
-#        expand("{result_dir}/metaphlan3.profile.merge.txt", result_dir = config["results"])
-#        expand("{result_dir}/{sample}.bam", result_dir = config["contigs"], sample = SAMPLES),
-#        expand("{result_dir}/{sample}.bam.bai", result_dir = config["contigs"], sample = SAMPLES),
-#        expand("{result_dir}/{sample}_maxbin/{sample}.maxbin.log", result_dir = config["contigs"], sample = SAMPLES),
+#        expand("{result_dir}/filter_summary.txt", result_dir = config["results"]),
+        expand("{result_dir}/{sample}_coverage.txt", result_dir = config["contigs"], sample = SAMPLES),
         expand("{result_dir}/{sample}/{sample}_DASTool_summary.tsv", result_dir = config["bins"], sample = SAMPLES)
+
+localrules: filter_summary, contigsMod
 
 
 ### trimming & remove host reads
@@ -40,14 +39,14 @@ rule filter:
         r1 = lambda wildcards: get_sample_id(_samples, wildcards, "fq1"),
         r2 = lambda wildcards: get_sample_id(_samples, wildcards, "fq2")
     output:
-        trim_r1 = temp(os.path.join(config["assay"]["trimming"], "{sample}.trimmed.1.fq.gz")),
-        trim_r2 = temp(os.path.join(config["assay"]["trimming"], "{sample}.trimmed.2.fq.gz")),
         html = os.path.join(config["assay"]["trimming"], "{sample}.fastp.html"),
         json = os.path.join(config["assay"]["trimming"], "{sample}.fastp.json"),
-        sam = temp(os.path.join(config["assay"]["trimming"], "{sample}.sam")),
         rmhost_r1 = protected(os.path.join(config["assay"]["rmhost"], "{sample}.rmhost.1.fq.gz")),
         rmhost_r2 = protected(os.path.join(config["assay"]["rmhost"], "{sample}.rmhost.2.fq.gz"))
     params:
+        trim_r1 = temp(os.path.join(config["assay"]["trimming"], "{sample}.trimmed.1.fq.gz")),
+        trim_r2 = temp(os.path.join(config["assay"]["trimming"], "{sample}.trimmed.2.fq.gz")),
+        sam = temp(os.path.join(config["assay"]["trimming"], "{sample}.sam")),
         min_len = config["params"]["fastp"]["min_len"],
         ad_r1 = config["params"]["fastp"]["adapter_r1"],
         ad_r2 = config["params"]["fastp"]["adapter_r2"],
@@ -63,11 +62,16 @@ rule filter:
         bowtie2_log = os.path.join(config["logs"]["rmhost"], "{sample}.rmhost.log")
     shell:
         """
-        fastp -i {input.r1} -I {input.r2} -o {output.trim_r1} -O {output.trim_r2} -w {threads} --n_base_limit {params.n_lim} --cut_front --cut_tail --length_required {params.min_len} --adapter_sequence={params.ad_r1} --adapter_sequence_r2={params.ad_r2} -j {output.json} -h {output.html} 2> {log.fastp_log}
+        fastp -i {input.r1} -I {input.r2} -o {params.trim_r1} -O {params.trim_r2} -w {threads} --n_base_limit {params.n_lim} --cut_front --cut_tail --length_required {params.min_len} --adapter_sequence={params.ad_r1} --adapter_sequence_r2={params.ad_r2} -j {output.json} -h {output.html} 2> {log.fastp_log}
 
-        bowtie2 --end-to-end --very-sensitive -p {threads} -I 0 -X {params.maxins} -x {params.index} --mm -1 {output.trim_r1} -2 {output.trim_r2} > {output.sam} 2> {log.bowtie2_log}
 
-        samtools fastq -N -c 5 -f 12 -F 256 -1 {output.rmhost_r1} -2 {output.rmhost_r2} {output.sam}
+        bowtie2 --end-to-end --very-sensitive -p {threads} -I 0 -X {params.maxins} -x {params.index} --mm -1 {params.trim_r1} -2 {params.trim_r2} > {params.sam} 2> {log.bowtie2_log}
+
+        rm {params.trim_r1} {params.trim_r2} 
+
+        samtools fastq -N -c 5 -f 12 -F 256 -1 {output.rmhost_r1} -2 {output.rmhost_r2} {params.sam}
+
+        rm {params.sam}
         """
 
 ### summary of filtered reads
@@ -131,17 +135,17 @@ rule assembly:
         read2 = os.path.join(config["assay"]["rmhost"], "{sample}.rmhost.2.fq.gz")
     output:
         directory(os.path.join(config["assembly"], "{sample}"))
-    threads: 36
+    threads: 90
     conda:
         "envs/megahit.yaml"
     shell:
         """
-        megahit -1 {input.read1} -2 {input.read1} -o {output} --k-min 25 --k-max 131 --k-step 10 -t {threads}
+        megahit -1 {input.read1} -2 {input.read2} -o {output} --k-min 25 --k-max 131 --k-step 10 -t {threads}
         """
 
 rule contigsMod:
     input:
-        os.path.join(config["assembly"], "{sample}")
+        ancient(os.path.join(config["assembly"], "{sample}"))
     output:
         os.path.join(config["contigs"], "{sample}_contigs.fa")
     shell:
@@ -194,6 +198,18 @@ rule samBam:
         """
         samtools view -@ {threads} -hb -F4 {input} | samtools sort -o {params.bam}
         samtools index {params.bam}
+        """
+
+rule coverage:
+    input:
+        os.path.join(config["contigs"],"{sample}.bam")
+    output:
+        os.path.join(config["contigs"],"{sample}_coverage.txt")
+    conda:
+        "envs/samtools.yaml"
+    shell:
+        """
+        samtools depth {input} | awk '{{ sum+=$3 }} END {{print "Average coverage:","\t",sum/NR}}' > {output}
         """
 
 rule metabat2:
@@ -253,7 +269,7 @@ rule das_tools:
         "envs/dastools.yaml"
     shell:
         """
-        DAS_Tool -i {input.maxbinBins},{input.metabatBins} -l Metabat,Maxbin -c {input.fa} -o {params.dir} --write_bins -t {threads}
+        DAS_Tool -i {input.maxbinBins},{input.metabatBins} -l Maxbin,Metabat -c {input.fa} -o {params.dir} --write_bins -t {threads}
         """
       
 
@@ -272,3 +288,6 @@ rule merge_profile:
         python rules/merge_metaphlan_tables.py {input.mpa} > {output.mpa_merge}
         python rules/merge_metaphlan_tables.py {input.vir} > {output.mpa_merge_vir}
         '''
+
+onerror:
+    shell("mail -s 'Metagenomic analysis failed' giang.le@mumc.nl < {log}")

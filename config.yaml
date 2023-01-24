@@ -5,11 +5,11 @@ params:
       adapter_r1: "AAGTCGGAGGCCAAGCGGTCTTAGGAAGACAA" # adapter for read1. here is BGI-SEQ adapter
       adapter_r2: "AAGTCGGATCGTAGCCATGTCGTTCTGTGAGCCAAGGAGTTG" # adapter for read2. here is BGI-SEQ adapter
     rmhost:
-      bowtie2_index: "database/human_genome/chm13.draft_v1.0_plusY" # human genome + y chromosome reference bowtie2 index (prefix)
+      bowtie2_index: "/ifs/data/mmbresearch/metagenomic_databases/human_genome/chm13.draft_v1.0_plusY" # human genome + y chromosome reference bowtie2 index (prefix)
       bowtie2_maxins: 600 # Recommended value 500 (bowtie2 default).
       threads: 8
     metaphlan3:
-      bowtie2db: "database/metaphlan_database/" # the path contains built bowtie2 index of metaphlan database
+      bowtie2db: "/ifs/data/mmbresearch/metagenomic_databases/metaphlan_database/" # the path contains built bowtie2 index of metaphlan database
       index: "mpa_v30_CHOCOPhlAn_201901" # metaphlan bowtie2 index name (prefix)
       threads: 8
 
