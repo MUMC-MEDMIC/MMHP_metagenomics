@@ -28,9 +28,10 @@ rule all:
     input:
 #        expand("{result_dir}/filter_summary.txt", result_dir = config["results"]),
         expand("{result_dir}/{sample}_coverage.txt", result_dir = config["contigs"], sample = SAMPLES),
-        expand("{result_dir}/{sample}/{sample}_DASTool_summary.tsv", result_dir = config["bins"], sample = SAMPLES)
+        expand("{result_dir}/{sample}/das_tool_taxonomy", result_dir =  config["bins"], sample = SAMPLES ),
+        expand("{result_dir}/{sample}/{sample}_genefamilies.tsv", result_dir = config["function"], sample = SAMPLES)
 
-localrules: filter_summary, contigsMod
+localrules: filter_summary, contigsMod, merge_fq
 
 
 ### trimming & remove host reads
@@ -272,7 +273,77 @@ rule das_tools:
         DAS_Tool -i {input.maxbinBins},{input.metabatBins} -l Maxbin,Metabat -c {input.fa} -o {params.dir} --write_bins -t {threads}
         """
       
+rule checkMdas:
+    input:
+        os.path.join(config["bins"],"{sample}","{sample}_DASTool_summary.tsv"),
+    output:
+        das = os.path.join(config["bins"],"{sample}","{sample}_dastool_complete.txt"),
+        tmpdas = temp(directory(os.path.join(config["bins"],"{sample}","{sample}_dastool_tmp"))),
+    params:
+        das = os.path.join(config["bins"],"{sample}","{sample}_DASTool_bins"),
+        dasComplete = os.path.join(config["bins"],"{sample}","{sample}_dastool_checkm"),
+        dasMarker = os.path.join(config["bins"],"{sample}","{sample}_dastool.marker"),
+    threads: 24
+    conda:
+        "envs/checkm.yaml"
+    shell:
+        """
+        mkdir -p {output.tmpdas}
 
+        checkm tree -t {threads} -x fa {params.das} {params.dasComplete}
+        checkm lineage_set {params.dasComplete} {params.dasMarker}
+        checkm analyze -t {threads} -x fa {params.dasMarker} {params.das} {params.dasComplete} --tmpdir {output.tmpdas}
+        checkm qa -t {threads} {params.dasMarker} {params.dasComplete} -f {output.das}
+        """
+
+rule binTaxo:
+    input:
+        os.path.join(config["bins"],"{sample}","{sample}_DASTool_summary.tsv"),
+    output:
+        directory(os.path.join(config["bins"],"{sample}","das_tool_taxonomy")),
+    params:
+        export = config["params"]["binTaxo"],
+        dir = os.path.join(config["bins"],"{sample}","{sample}_DASTool_bins"),
+    threads: 8
+    conda:
+        "envs/gtdbkt.yaml"
+    shell:
+        """
+        export GTDBTK_DATA_PATH={params.export} 
+        gtdbtk classify_wf --genome_dir {params.dir} --out_dir {output} --cpus {threads} --extension fa
+        """
+
+rule merge_fq:
+    input:
+        read1 = os.path.join(config["assay"]["rmhost"], "{sample}.rmhost.1.fq.gz"),
+        read2 = os.path.join(config["assay"]["rmhost"], "{sample}.rmhost.2.fq.gz")
+    output:
+        temp(os.path.join(config["function"],"{sample}.fq.gz"))
+    shell:
+        """
+        cat {input} > {output}
+        """
+
+rule humann4:
+    input:
+        os.path.join(config["function"],"{sample}.fq.gz")
+    output:
+        genefam = os.path.join(config["function"],"{sample}","{sample}_genefamilies.tsv"),
+        pathabund = os.path.join(config["function"],"{sample}","{sample}_pathabundance.tsv"),
+        pathcov = os.path.join(config["function"],"{sample}","{sample}_pathcoverage.tsv"),
+        tmpdir = temp(directory(os.path.join(config["function"],"{sample}","{sample}_humann_temp"))),
+    conda:
+        "envs/humann4.yaml"
+    threads: 16
+    params:
+        outdir = os.path.join(config["function"],"{sample}"),
+        nu_db = config["params"]["humann4"]["nu_db"],
+        aa_db = config["params"]["humann4"]["aa_db"],
+        metaphlan_command = "'--index mpa_vJan21_CHOCOPhlAnSGB_202103 --bowtie2db /ifs/data/mmbresearch/metagenomic_databases/metaphlan4_db'"
+    shell:
+        """
+        humann -i {input} --nucleotide-database {params.nu_db} --protein-database {params.aa_db} -o {params.outdir} --metaphlan-options {params.metaphlan_command} --threads {threads}
+        """
 
 
 ### step4 profile_summary

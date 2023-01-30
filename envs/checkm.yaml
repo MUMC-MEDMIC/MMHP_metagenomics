@@ -1,0 +1,6 @@
+name: megahit
+channels:
+  - bioconda
+  - defaults
+dependencies:
+  - checkm-genome=1.2.0

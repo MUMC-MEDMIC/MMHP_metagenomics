@@ -1,4 +1,4 @@
-name: mmhp
+name: mmhp_meta
 channels:
   - bioconda
   - conda-forge

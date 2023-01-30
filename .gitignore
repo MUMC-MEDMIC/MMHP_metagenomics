@@ -3,6 +3,9 @@ readme_original.md
 1.assay/*
 2.result/*
 3.assemblies/*
+4.contigs/*
+5.bins/*
+6.functions/*
 
 .snakemake/*
 database/*

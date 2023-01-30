@@ -1,0 +1,6 @@
+name: humann4
+channels:
+  - bioconda
+dependencies:
+  - humann
+

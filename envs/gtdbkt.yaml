@@ -1,0 +1,7 @@
+name: bwa
+channels:
+  - bioconda
+dependencies:
+  - numpy=1.23.1
+  - gtdbtk=2.1.1
+
