@@ -1,0 +1,5 @@
+name: squeezeMeta
+channels:
+ - fpusan
+dependencies:
+ - squeezemeta=1.5.1

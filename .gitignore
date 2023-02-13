@@ -12,3 +12,4 @@ database/*
 ranCommands.sh
 metaRemoveHuman.sh
 template_sample.txt
+slurm*

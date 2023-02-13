@@ -26,12 +26,13 @@ print(SAMPLES)
 
 rule all:
     input:
-#        expand("{result_dir}/filter_summary.txt", result_dir = config["results"]),
+        expand("{result_dir}/filter_summary.txt", result_dir = config["results"]),
         expand("{result_dir}/{sample}_coverage.txt", result_dir = config["contigs"], sample = SAMPLES),
         expand("{result_dir}/{sample}/das_tool_taxonomy", result_dir =  config["bins"], sample = SAMPLES ),
-        expand("{result_dir}/{sample}/{sample}_genefamilies.tsv", result_dir = config["function"], sample = SAMPLES)
+        expand("{result_dir}/{sample}/{sample}_genefamilies.tsv", result_dir = config["function"], sample = SAMPLES),
+        expand("{result_dir}/{sample}/squeezeMeta_{sample}", result_dir = config["function"], sample = SAMPLES)
 
-localrules: filter_summary, contigsMod, merge_fq
+localrules: filter_summary, contigsMod, merge_fq, squeezeIn
 
 
 ### trimming & remove host reads
@@ -345,6 +346,39 @@ rule humann4:
         humann -i {input} --nucleotide-database {params.nu_db} --protein-database {params.aa_db} -o {params.outdir} --metaphlan-options {params.metaphlan_command} --threads {threads}
         """
 
+rule squeezeIn:
+    input:
+        read1 = os.path.join(config["assay"]["rmhost"], "{sample}.rmhost.1.fq.gz"),
+        read2 = os.path.join(config["assay"]["rmhost"], "{sample}.rmhost.2.fq.gz")
+    output:
+        os.path.join(config["function"],"{sample}","{sample}_squeezeSamples.txt")
+    shell:
+        """
+        echo "{wildcards.sample} $(basename {input.read1}) pair1" | sed 's/ /\t/g' > {output}
+        echo "{wildcards.sample} $(basename {input.read2}) pair2" | sed 's/ /\t/g' >> {output}
+        """
+
+rule squeezemeta:
+    input:
+        fa = os.path.join(config["contigs"], "{sample}_contigs.fa"),
+        squeezeIn = os.path.join(config["function"],"{sample}","{sample}_squeezeSamples.txt")
+    output:
+        squeeze = directory(os.path.join(config["function"],"{sample}","squeezeMeta_{sample}")),
+    params:
+        dir = directory(os.path.join(config["function"],"{sample}","squeezeMeta_{sample}")),
+        squeezeRaw = directory(os.path.join(config["function"],"{sample}","squeezeMeta_{sample}/data")),
+        db = directory(config["params"]["squeezemeta"]["db"]),
+        pathRaw = config["assay"]["rmhost"]
+    conda:
+        "envs/squeeze.yaml"
+    threads: 16
+    shell:
+        """
+        ## Setup the databases
+        configure_nodb_alt.pl {params.db}
+        SqueezeMeta.pl -m coassembly -p {params.dir} -t {threads} -s {input.squeezeIn} -f {params.pathRaw} -extassembly {input.fa}
+        rm -r {params.squeezeRaw}
+        """
 
 ### step4 profile_summary
 rule merge_profile:

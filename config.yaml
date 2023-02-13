@@ -16,6 +16,8 @@ params:
     humann4:
       nu_db: "/ifs/data/mmbresearch/metagenomic_databases/chocophlan"
       aa_db: "/ifs/data/mmbresearch/metagenomic_databases/uniref"
+    squeezemeta:
+      db: "/ifs/data/mmbresearch/metagenomic_databases/squeezemeta_db"
 
 assay:
     trimming: "1.assay/01.trimming"
