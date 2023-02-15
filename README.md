@@ -8,7 +8,7 @@ The "remove-host" standard operating procedure in MMHP (The Million Microbiome o
 ## How to run main analysis
 
 Clone this repo from github:
-
+`git clone https://github.com/MUMC-MEDMIC/MMHP_metagenomics`
 
 Create conda environment for snakemake.
 
