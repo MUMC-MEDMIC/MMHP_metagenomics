@@ -1,6 +1,90 @@
 # MMHP - Standard Operating Procedure - Removing Host Sequence
 
-The "remove-host" standard operating procedure in MMHP (The Million Microbiome of Humans Project). This repository is the standard pipeline for removing human genome sequence from metagenome data, containing profiling step, based on an internal analysis pipeline.
+The "remove-host" standard operating procedure in MMHP (The Million Microbiome of Humans Project). This repository is the standard pipeline for removing human genome sequence from metagenome data, containing profiling step, gene functional annotation based on an internal analysis pipeline.
+
+> Note: Additional steps have been added to the original pipeline for data analysis. Original README text can be found at the end of this document.
+
+
+## How to run main analysis
+
+Clone this repo from github:
+
+
+Create conda environment for snakemake.
+
+```
+# Create mmhp environment
+conda env create -f envs/mmhp.yaml
+
+# Activate environment
+conda activate mmhp
+```
+
+Copy the template to sample.txt
+
+`cp sample_template.txt sample.txt`
+
+
+The sample name together with the location of the raw reads need to be specify.
+###This file must be tab seperated.###  
+Eg:
+
+```
+id	fq1	fq2
+Sample1	Location_of_raw_1.fq.gz	Location_of_raw_2.fq.gz
+Sample2 Location_of_raw2_1.fq.gz Location_of_raw2_2.fq.gz
+```
+
+Run the analysis with:
+
+
+`snakemake --cluster 'sbatch --cpus-per-task 16 --mem-per-cpu 64 --output=/dev/null' --jobs 100 --latency-wait 90 --use-conda --restart-times 3 -p --keep-going`
+
+
+## How to rerun some of the steps
+
+Copy the tempalate to sample.txt
+
+`cp sample_rerun_template.txt sample_rerun.txt`
+
+> Important step below
+Copy the trimmed fastq files to ***1.assay/02.rmhost/***
+
+Same as above fill the sample name together with the location of the human free fastq files.
+###This file must be tab seperated.###
+Eg:
+
+```
+id	r1	r2
+Sample1 Location_of_rmhost_1.fq.gz Location_of_rmhost_2.fq.gz
+Sample2 Location_of_rmhost2_1.fq.gz Location_of_rmhost2_2.fq.gz
+```
+
+### Choose the analysis
+
+Open the file rerun.smk in a text editor.
+Comment out any analysis you do not wish to rerun
+
+```
+#expand("{result_dir}/{sample}/{sample}_genefamilies.tsv", result_dir = config["function"], sample = SAMPLES),
+expand("{result_dir}/{sample}/squeezeMeta_{sample}", result_dir = config["function"], sample = SAMPLES)
+```
+
+In the case above, Squeezemeta will be reanalysed instead of Humann4. 
+
+
+Run the analysis with:
+
+`snakemake -s rerun.smk --cluster 'sbatch --cpus-per-task 16 --mem-per-cpu 64 --output=/dev/null' --jobs 100 --latency-wait 90 --use-conda --restart-times 3 -p --keep-going`
+
+
+
+
+
+
+
+
+
 
 ## Notification
 

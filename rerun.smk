@@ -1,118 +1,43 @@
-##############################################################
-### giang.le@mumc.nl
-### MMHP metagenomics analysis
-### ref: https://github.com/ohmeta/metapi/blob/master/metapi/Snakefile
-##############################################################
-
 import os
 import sys
 import pandas
 
-shell.executable("bash")
-configfile: "config.yaml"
-
+# parse tsv file. Only process complete samples
 def parse_samples(samples_tsv):
-    return pandas.read_csv(samples_tsv, sep='\t').set_index("id", drop=False)
+    return pandas.read_csv(samples_tsv, sep='\t').set_index("id", drop=False).dropna()
 
+# get reads based on sample id
 def get_sample_id(sample_df, wildcards, col):
-    return sample_df.loc[wildcards.sample, [col]].dropna()[0]
+    return sample_df.loc[wildcards.sample, [col]][0]
 
-_samples = parse_samples("sample.txt")
+# load sample file
+_samples = parse_samples("sample_rerun.txt")
 
-localrules: filter_summary
 
-SAMPLES = list(pandas.read_csv("sample.txt", sep='\t').set_index("id", drop=False)["id"])
-print(SAMPLES)
+SAMPLES = list(_samples["id"])
+print (SAMPLES)
 
 rule all:
     input:
-        expand("{result_dir}/filter_summary.txt", result_dir = config["results"]),
+        expand("{result_dir}/{sample}.mp3.profile", result_dir = config["assay"]["profile"], sample = SAMPLES),
+        expand("{result_dir}/{sample}", result_dir = config["assembly"], sample = SAMPLES),
         expand("{result_dir}/{sample}_coverage.txt", result_dir = config["contigs"], sample = SAMPLES),
-        expand("{result_dir}/{sample}/{sample}_bins_taxonomy", result_dir =  config["bins"], sample = SAMPLES ),
+        expand("{result_dir}/{sample}/{sample}_metabat_contigs_list", result_dir = config["bins"], sample = SAMPLES),
+        expand("{result_dir}/{sample}/{sample}_maxbin_contigs_list", result_dir = config["bins"], sample = SAMPLES),
+        expand("{result_dir}/{sample}/{sample}_DASTool_summary.tsv", result_dir = config["bins"], sample = SAMPLES),
+        expand("{result_dir}/{sample}/{sample}_checkM.txt", result_dir = config["bins"], sample = SAMPLES),
+        expand("{result_dir}/{sample}/{sample}_bins_taxonomy", result_dir = config["bins"], sample = SAMPLES),
         expand("{result_dir}/{sample}/{sample}_genefamilies.tsv", result_dir = config["function"], sample = SAMPLES),
-#        expand("{result_dir}/{sample}/squeezeMeta_{sample}", result_dir = config["function"], sample = SAMPLES)
-
-localrules: filter_summary, contigsMod, merge_fq, squeezeIn
+        expand("{result_dir}/{sample}/squeezeMeta_{sample}", result_dir = config["function"], sample = SAMPLES)
 
 
-### trimming & remove host reads
-rule filter:
+localrules: merge_fq,contigsMod, coverage
+
+rule metaphlan:
     input:
-        r1 = lambda wildcards: get_sample_id(_samples, wildcards, "fq1"),
-        r2 = lambda wildcards: get_sample_id(_samples, wildcards, "fq2")
+        r1 = lambda wildcards: get_sample_id(_samples, wildcards, "r1"),
+        r2 = lambda wildcards: get_sample_id(_samples, wildcards, "r2")
     output:
-        html = os.path.join(config["assay"]["trimming"], "{sample}.fastp.html"),
-        json = os.path.join(config["assay"]["trimming"], "{sample}.fastp.json"),
-        rmhost_r1 = protected(os.path.join(config["assay"]["rmhost"], "{sample}.rmhost.1.fq.gz")),
-        rmhost_r2 = protected(os.path.join(config["assay"]["rmhost"], "{sample}.rmhost.2.fq.gz"))
-    params:
-        trim_r1 = temp(os.path.join(config["assay"]["trimming"], "{sample}.trimmed.1.fq.gz")),
-        trim_r2 = temp(os.path.join(config["assay"]["trimming"], "{sample}.trimmed.2.fq.gz")),
-        sam = temp(os.path.join(config["assay"]["trimming"], "{sample}.sam")),
-        min_len = config["params"]["fastp"]["min_len"],
-        ad_r1 = config["params"]["fastp"]["adapter_r1"],
-        ad_r2 = config["params"]["fastp"]["adapter_r2"],
-        n_lim = config["params"]["fastp"]["n_base_limit"],
-        index = config["params"]["rmhost"]["bowtie2_index"],
-        maxins = config["params"]["rmhost"]["bowtie2_maxins"]
-    threads:
-        config["params"]["rmhost"]["threads"]
-    conda:
-        "envs/filter.yaml"
-    log:
-        fastp_log = os.path.join(config["logs"]["trimming"], "{sample}.fastp.log"),
-        bowtie2_log = os.path.join(config["logs"]["rmhost"], "{sample}.rmhost.log")
-    shell:
-        """
-        fastp -i {input.r1} -I {input.r2} -o {params.trim_r1} -O {params.trim_r2} -w {threads} --n_base_limit {params.n_lim} --cut_front --cut_tail --length_required {params.min_len} --adapter_sequence={params.ad_r1} --adapter_sequence_r2={params.ad_r2} -j {output.json} -h {output.html} 2> {log.fastp_log}
-
-
-        bowtie2 --end-to-end --very-sensitive -p {threads} -I 0 -X {params.maxins} -x {params.index} --mm -1 {params.trim_r1} -2 {params.trim_r2} > {params.sam} 2> {log.bowtie2_log}
-
-        rm {params.trim_r1} {params.trim_r2} 
-
-        samtools fastq -N -c 5 -f 12 -F 256 -1 {output.rmhost_r1} -2 {output.rmhost_r2} {params.sam}
-
-        rm {params.sam}
-        """
-
-### summary of filtered reads
-rule seqkit_stat:
-    input:
-        expand("{rmhost_log_dir}/{{sample}}.rmhost.{reads}.fq.gz", rmhost_log_dir = config["assay"]["rmhost"], reads = ["1","2"])
-    output:
-        os.path.join(config["logs"]["rmhost"], "{sample}.rmhost.reads.summary")
-    conda:
-        "envs/filter.yaml"
-    shell:
-        "seqkit stat {input} > {output}"
-
-rule filter_summary:
-    input:
-        trim = expand("{trim_res}/{sample}.fastp.json", trim_res = config["assay"]["trimming"], sample = _samples.index),
-        rmhost = expand("{rmhost_res}/{sample}.rmhost.reads.summary", rmhost_res = config["logs"]["rmhost"], sample = _samples.index)
-    output:
-        #protected(os.path.join(config["results"], "filter_summary.txt"))
-        os.path.join(config["results"], "filter_summary.txt")
-    params:
-        trim_summary = temp(os.path.join(config["results"], "trim_summary.txt")),
-        rmhost_summary = temp(os.path.join(config["results"], "rmhost_summary.txt"))
-    shell:
-        """
-        python rules/filter_summary.py -t {input.trim} > {params.trim_summary}
-        python rules/filter_summary.py -r {input.rmhost} > {params.rmhost_summary}
-        python rules/merge_summary.py {params.trim_summary} {params.rmhost_summary} {output}
-        rm {params.trim_summary} {params.rmhost_summary}
-        """
-
-### metaphlan3 taxonomic using markers
-rule metaphlan3:
-    input:
-        r1 = os.path.join(config["assay"]["rmhost"], "{sample}.rmhost.1.fq.gz"),
-        r2 = os.path.join(config["assay"]["rmhost"], "{sample}.rmhost.2.fq.gz")
-    output:
-        #mpa = protected(os.path.join(config["assay"]["profile"], "{sample}.mp3.profile")),
-        #vir = protected(os.path.join(config["assay"]["profile"], "{sample}.mp3_vir.profile"))
         mpa = os.path.join(config["assay"]["profile"], "{sample}.mp3.profile"),
         vir = os.path.join(config["assay"]["profile"], "{sample}.mp3_vir.profile")
     threads:
@@ -122,32 +47,31 @@ rule metaphlan3:
     params:
         bowtie2db = config["params"]["metaphlan3"]["bowtie2db"],
         index = config["params"]["metaphlan3"]["index"],
-        #bw2 = protected(os.path.join(config["assay"]["profile"], "{sample}.mp3.bw2.bz2")),
         bw2 = os.path.join(config["assay"]["profile"], "{sample}.mp3.bw2.bz2"),
     shell:
         """
         metaphlan {input.r1},{input.r2} --bowtie2db {params.bowtie2db} --index {params.index} --nproc {threads} --input_type fastq --bowtie2out {params.bw2} -t rel_ab_w_read_stats > {output.mpa}
         metaphlan {params.bw2} --bowtie2db {params.bowtie2db} --index {params.index} --nproc {threads} --input_type bowtie2out --add_viruses -t rel_ab_w_read_stats > {output.vir}
-        """
+                                                                                                                             """
 
 rule assembly:
     input:
-        os.path.join(config["assay"]["profile"], "{sample}.mp3.profile"),
-        read1 = os.path.join(config["assay"]["rmhost"], "{sample}.rmhost.1.fq.gz"),
-        read2 = os.path.join(config["assay"]["rmhost"], "{sample}.rmhost.2.fq.gz")
+        read1 = lambda wildcards: get_sample_id(_samples, wildcards, "r1"),
+        read2 = lambda wildcards: get_sample_id(_samples, wildcards, "r2")
     output:
         directory(os.path.join(config["assembly"], "{sample}"))
-    threads: 90
+    threads: 80
     conda:
         "envs/megahit.yaml"
     shell:
         """
-        megahit -1 {input.read1} -2 {input.read2} -o {output} --k-min 25 --k-max 131 --k-step 10 -t {threads}
+        ## for local use low memory
+        megahit -1 {input.read1} -2 {input.read2} -o {output} --k-min 25 --k-max 131 --k-step 10 -t {threads} -m 0.2 --mem-flag 1
         """
 
 rule contigsMod:
     input:
-        ancient(os.path.join(config["assembly"], "{sample}"))
+        os.path.join(config["assembly"], "{sample}")
     output:
         os.path.join(config["contigs"], "{sample}_contigs.fa")
     shell:
@@ -164,14 +88,13 @@ rule contigIndex:
         temp(multiext(os.path.join(config["contigs"],"{sample}_contigs.fa"),".amb",".ann",".bwt",".pac",".sa"))
     shell:
         """
-        bwa index {input} 
+        bwa index {input}
         """
 
-#https://ndombrowski.github.io/Binning_tutorial/#do-the-read-mapping
 rule mapRaws:
     input:
-        read1 = os.path.join(config["assay"]["rmhost"], "{sample}.rmhost.1.fq.gz"),
-        read2 = os.path.join(config["assay"]["rmhost"], "{sample}.rmhost.2.fq.gz"),
+        read1 = lambda wildcards: get_sample_id(_samples, wildcards, "r1"),
+        read2 = lambda wildcards: get_sample_id(_samples, wildcards, "r2"),
         idx = multiext(os.path.join(config["contigs"],"{sample}_contigs.fa"),".amb",".ann",".bwt",".pac",".sa")
     output:
         temp(os.path.join(config["contigs"],"{sample}.sam")),
@@ -199,7 +122,7 @@ rule samBam:
     shell:
         """
         samtools view -@ {threads} -hb -F4 {input} | samtools sort -o {params.bam}
-        samtools index {params.bam}
+        samtools index -@ {threads} {params.bam}
         """
 
 rule coverage:
@@ -231,7 +154,7 @@ rule metabat2:
     shell:
         """
         jgi_summarize_bam_contig_depths --outputDepth {output.depth} {input.bam}
-        metabat2 -i {input.fa} -a {output.depth} -o {params.bins} -t {threads} -v 
+        metabat2 -i {input.fa} -a {output.depth} -o {params.bins} -t {threads} -v
         awk '/>/{{sub(">","&"FILENAME"@");sub(/\.fa/,x)}}1'  {params.dir}/*.fa | grep ">" | awk -F"@" '{{print $2,$1}}' | sed 's/ .*\//\t/g' > {output.list}
         """
 
@@ -272,12 +195,12 @@ rule das_tools:
         """
         DAS_Tool -i {input.maxbinBins},{input.metabatBins} -l Maxbin,Metabat -c {input.fa} -o {params.dir} --write_bins -t {threads}
         """
-      
+
 rule checkMdas:
     input:
         os.path.join(config["bins"],"{sample}","{sample}_DASTool_summary.tsv"),
     output:
-        das = os.path.join(config["bins"],"{sample}","{sample}_dastool_complete.txt"),
+        das = os.path.join(config["bins"],"{sample}","{sample}_checkM.txt"),
         tmpdas = temp(directory(os.path.join(config["bins"],"{sample}","{sample}_dastool_tmp"))),
     params:
         das = os.path.join(config["bins"],"{sample}","{sample}_DASTool_bins"),
@@ -295,6 +218,7 @@ rule checkMdas:
         checkm analyze -t {threads} -x fa {params.dasMarker} {params.das} {params.dasComplete} --tmpdir {output.tmpdas}
         checkm qa -t {threads} {params.dasMarker} {params.dasComplete} -f {output.das}
         """
+
 
 rule binTaxo:
     input:
@@ -315,8 +239,8 @@ rule binTaxo:
 
 rule merge_fq:
     input:
-        read1 = os.path.join(config["assay"]["rmhost"], "{sample}.rmhost.1.fq.gz"),
-        read2 = os.path.join(config["assay"]["rmhost"], "{sample}.rmhost.2.fq.gz")
+        read1 = lambda wildcards: get_sample_id(_samples, wildcards, "r1"),
+        read2 = lambda wildcards: get_sample_id(_samples, wildcards, "r2"),
     output:
         temp(os.path.join(config["function"],"{sample}.fq.gz"))
     shell:
@@ -347,8 +271,8 @@ rule humann4:
 
 rule squeezeIn:
     input:
-        read1 = os.path.join(config["assay"]["rmhost"], "{sample}.rmhost.1.fq.gz"),
-        read2 = os.path.join(config["assay"]["rmhost"], "{sample}.rmhost.2.fq.gz")
+        read1 = lambda wildcards: get_sample_id(_samples, wildcards, "r1"),
+        read2 = lambda wildcards: get_sample_id(_samples, wildcards, "r2"),
     output:
         os.path.join(config["function"],"{sample}","{sample}_squeezeSamples.txt")
     shell:
@@ -373,25 +297,7 @@ rule squeezemeta:
     threads: 16
     shell:
         """
-        ## Setup the databases
         configure_nodb_alt.pl {params.db}
         SqueezeMeta.pl -m coassembly -p {params.dir} -t {threads} -s {input.squeezeIn} -f {params.pathRaw} -extassembly {input.fa}
         rm -r {params.squeezeRaw}
         """
-
-### step4 profile_summary
-rule merge_profile:
-    input:
-        mpa = expand("{profile_dir}/{sample}.mp3.profile", profile_dir = config["assay"]["profile"], sample = _samples.index),
-        vir = expand("{profile_dir}/{sample}.mp3_vir.profile", profile_dir = config["assay"]["profile"], sample = _samples.index)
-    output:
-        mpa_merge = protected(os.path.join(config['results'], "metaphlan3.profile.merge.txt")),
-        mpa_merge_vir = protected(os.path.join(config['results'], "metaphlan3_vir.profile.merge.txt"))
-    shell:
-        '''
-        python rules/merge_metaphlan_tables.py {input.mpa} > {output.mpa_merge}
-        python rules/merge_metaphlan_tables.py {input.vir} > {output.mpa_merge_vir}
-        '''
-
-onerror:
-    shell("mail -s 'Metagenomic analysis failed' giang.le@mumc.nl < {log}")
