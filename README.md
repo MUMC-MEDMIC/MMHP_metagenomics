@@ -26,7 +26,7 @@ Copy the template to sample.txt
 
 
 The sample name together with the location of the raw reads need to be specify.
-###This file must be tab seperated.###  
+***This file must be tab seperated.***  
 Eg:
 
 ```
@@ -38,12 +38,12 @@ Sample2 Location_of_raw2_1.fq.gz Location_of_raw2_2.fq.gz
 Run the analysis with:
 
 
-`snakemake --cluster 'sbatch --cpus-per-task 16 --mem-per-cpu 64 --output=/dev/null' --jobs 100 --latency-wait 90 --use-conda --restart-times 3 -p --keep-going`
+`snakemake --cluster 'sbatch --cpus-per-task 16 --mem-per-cpu 64 --output=/dev/null' --jobs 100 --latency-wait 90 --use-conda --restart-times 3 -p --keep-going --configfile config.yaml`
 
 
-## How to rerun some of the steps
+## How to rerun analysis
 
-Copy the tempalate to sample.txt
+Copy the tempalate to sample_rerun.txt
 
 `cp sample_rerun_template.txt sample_rerun.txt`
 
@@ -51,13 +51,13 @@ Copy the tempalate to sample.txt
 Copy the trimmed fastq files to ***1.assay/02.rmhost/***
 
 Same as above fill the sample name together with the location of the human free fastq files.
-###This file must be tab seperated.###
+***This file must be tab seperated.***  
 Eg:
 
 ```
 id	r1	r2
-Sample1 Location_of_rmhost_1.fq.gz Location_of_rmhost_2.fq.gz
-Sample2 Location_of_rmhost2_1.fq.gz Location_of_rmhost2_2.fq.gz
+Sample1 1.assay/02.rmhost/sample1_rmhost_1.fq.gz 1.assay/02.rmhost/sample1_rmhost_2.fq.gz
+Sample2 1.assay/02.rmhost/sample2_rmhost_1.fq.gz 1.assay/02.rmhost/sample2_rmhost_2.fq.gz
 ```
 
 ### Choose the analysis
@@ -70,12 +70,13 @@ Comment out any analysis you do not wish to rerun
 expand("{result_dir}/{sample}/squeezeMeta_{sample}", result_dir = config["function"], sample = SAMPLES)
 ```
 
-In the case above, Squeezemeta will be reanalysed instead of Humann4. 
+In the case above, Squeezemeta will be reanalysed instead of Humann4.
+To have a smooth rerun, make sure that the result directories are empty. 
 
 
 Run the analysis with:
 
-`snakemake -s rerun.smk --cluster 'sbatch --cpus-per-task 16 --mem-per-cpu 64 --output=/dev/null' --jobs 100 --latency-wait 90 --use-conda --restart-times 3 -p --keep-going`
+`snakemake -s rerun.smk --cluster 'sbatch --cpus-per-task 16 --mem-per-cpu 64 --output=/dev/null' --jobs 100 --latency-wait 90 --use-conda --restart-times 3 -p --keep-going --configfile config.yaml`
 
 
 
