@@ -1,0 +1,2 @@
+id	r1	r2
+portionTestRerun	1.assay/02.rmhost/subportion_1.fq	1.assay/02.rmhost/subportion_2.fq

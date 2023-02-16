@@ -19,15 +19,25 @@ print (SAMPLES)
 
 rule all:
     input:
+        # Metaphan analysis
         expand("{result_dir}/{sample}.mp3.profile", result_dir = config["assay"]["profile"], sample = SAMPLES),
+        # Contigs
         expand("{result_dir}/{sample}", result_dir = config["assembly"], sample = SAMPLES),
+        # Converage of the contigs
         expand("{result_dir}/{sample}_coverage.txt", result_dir = config["contigs"], sample = SAMPLES),
+        # Metabat2 bins
         expand("{result_dir}/{sample}/{sample}_metabat_contigs_list", result_dir = config["bins"], sample = SAMPLES),
+        # Maxbin2 bins
         expand("{result_dir}/{sample}/{sample}_maxbin_contigs_list", result_dir = config["bins"], sample = SAMPLES),
+        # Dastool bins
         expand("{result_dir}/{sample}/{sample}_DASTool_summary.tsv", result_dir = config["bins"], sample = SAMPLES),
+        # CheckM, bin quality
         expand("{result_dir}/{sample}/{sample}_checkM.txt", result_dir = config["bins"], sample = SAMPLES),
+        # Bin taxonomy
         expand("{result_dir}/{sample}/{sample}_bins_taxonomy", result_dir = config["bins"], sample = SAMPLES),
+        # Humann4 functional gene annotation from raw reads
         expand("{result_dir}/{sample}/{sample}_genefamilies.tsv", result_dir = config["function"], sample = SAMPLES),
+        # SqueezeMeta functional gene annotaiton from contigs
         expand("{result_dir}/{sample}/squeezeMeta_{sample}", result_dir = config["function"], sample = SAMPLES)
 
 

@@ -66,6 +66,43 @@ Open the file rerun.smk in a text editor.
 Comment out any analysis you do not wish to rerun
 
 ```
+expand("{result_dir}/{sample}/{sample}_checkM.txt", result_dir = config["bins"], sample = SAMPLES),
+#expand("{result_dir}/{sample}/squeezeMeta_{sample}", result_dir = config["function"], sample = SAMPLES)
+```
+
+In the case above, checkM will run but not Squeezemeta.
+To have a smooth rerun, make sure that the result directories are empty. 
+
+
+Run the analysis with:
+
+`snakemake -s rerun.smk --cluster 'sbatch --cpus-per-task 16 --mem-per-cpu 64 --output=/dev/null' --jobs 100 --latency-wait 90 --use-conda --restart-times 3 -p --keep-going --configfile config.yaml`
+
+
+## How to rerun squeezemeta
+
+Copy the tempalate to sample_rerun.txt
+
+`cp sample_rerun_squeezemeta_template.txt sample_rerun_squeezemeta.txt`
+
+> Important step below
+Copy the trimmed fastq files to ***1.assay/02.rmhost/*** and the contigs to ***4.contigs*** .
+Same as above fill the sample name together with the location of the human free fastq files and contigs.
+***This file must be tab seperated.***  
+Eg:
+
+```
+id	r1	r2	c
+Sample1 1.assay/02.rmhost/sample1_rmhost_1.fq.gz 1.assay/02.rmhost/sample1_rmhost_2.fq.gz	4.contigs/sample1_contigs.fa
+Sample2 1.assay/02.rmhost/sample2_rmhost_1.fq.gz 1.assay/02.rmhost/sample2_rmhost_2.fq.gz	4.contigs/sample2_contigs.fa
+```
+
+### Choose the analysis
+
+Same as above, open the file rerun.smk in a text editor.
+Comment out any analysis you do not wish to rerun
+
+```
 #expand("{result_dir}/{sample}/{sample}_genefamilies.tsv", result_dir = config["function"], sample = SAMPLES),
 expand("{result_dir}/{sample}/squeezeMeta_{sample}", result_dir = config["function"], sample = SAMPLES)
 ```
@@ -76,8 +113,7 @@ To have a smooth rerun, make sure that the result directories are empty.
 
 Run the analysis with:
 
-`snakemake -s rerun.smk --cluster 'sbatch --cpus-per-task 16 --mem-per-cpu 64 --output=/dev/null' --jobs 100 --latency-wait 90 --use-conda --restart-times 3 -p --keep-going --configfile config.yaml`
-
+`snakemake -s squeezemeta_rerun.smk --cluster 'sbatch --cpus-per-task 16 --mem-per-cpu 64 --output=/dev/null' --jobs 100 --latency-wait 90 --use-conda --restart-times 3 -p --keep-going --configfile config.yaml`
 
 
 
